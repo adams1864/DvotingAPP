@@ -1,120 +1,279 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <!-- The above 3 meta tags *must* come first in the head; any other head content must come *after* these tags -->
-    <title>Weighted Voting DApp</title>
-
-    <!-- Bootstrap -->
-    <link href="css/bootstrap.min.css" rel="stylesheet">
-
-    <!-- HTML5 shim and Respond.js for IE8 support of HTML5 elements and media queries -->
-    <!-- WARNING: Respond.js doesn't work if you view the page via file:// -->
-    <!--[if lt IE 9]>
-      <script src="https://oss.maxcdn.com/html5shiv/3.7.3/html5shiv.min.js"></script>
-      <script src="https://oss.maxcdn.com/respond/1.4.2/respond.min.js"></script>
-    <![endif]-->
-  </head>
-  <body>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Governance Voting System</title>
+  <link href="css/bootstrap.min.css" rel="stylesheet">
+  <link href="css/governance.css" rel="stylesheet">
+</head>
+<body>
+  
+  <!-- Header -->
+  <header class="gov-header">
     <div class="container">
-      <div class="row">
-        <div class="col-sm-10 col-sm-push-1">
-          <h1 class="text-center">Weighted Voting System</h1>
-          <p class="lead text-center">Admin whitelists voters with weights, voters cast ballots on proposals.</p>
-          <hr />
-        </div>
-      </div>
-
-      <div class="row">
-        <div class="col-md-4">
-          <div class="panel panel-default">
-            <div class="panel-heading"><strong>Connection</strong></div>
-            <div class="panel-body">
-              <p><strong>Account:</strong> <span id="accountAddress">-</span></p>
-              <p><strong>Role:</strong> <span id="accountRole">-</span></p>
-              <p><strong>Phase:</strong> <span id="phaseLabel">-</span></p>
-              <p><strong>Status:</strong> <span id="accountStatus">Waiting for wallet...</span></p>
-            </div>
-          </div>
-
-          <div id="adminActions" class="panel panel-info" style="display:none;">
-            <div class="panel-heading"><strong>Admin Controls</strong></div>
-            <div class="panel-body">
-              <form id="addProposalForm">
-                <div class="form-group">
-                  <label for="proposalTitle">New proposal title</label>
-                  <input class="form-control" id="proposalTitle" placeholder="e.g. Upgrade lab equipment" />
-                </div>
-                <button class="btn btn-primary btn-block" type="submit">Add Proposal</button>
-              </form>
-              <hr />
-              <form id="whitelistForm">
-                <div class="form-group">
-                  <label for="whitelistAddress">Voter address</label>
-                  <input class="form-control" id="whitelistAddress" placeholder="0x..." />
-                </div>
-                <div class="form-group">
-                  <label for="voterWeight">Weight</label>
-                  <input class="form-control" id="voterWeight" type="number" min="1" value="1" />
-                </div>
-                <button class="btn btn-success btn-block" type="submit">Whitelist voter</button>
-              </form>
-              <hr />
-              <button id="startVotingBtn" class="btn btn-warning btn-block" type="button">Start voting</button>
-              <button id="closeVotingBtn" class="btn btn-danger btn-block" type="button">Close voting</button>
-            </div>
+      <div class="header-content">
+        <div class="gov-logo">
+          <span class="logo-icon">🏛️</span>
+          <div class="logo-text">
+            <h1>Governance Voting System</h1>
+            <p class="tagline">Secure • Transparent • Decentralized</p>
           </div>
         </div>
-
-        <div class="col-md-8">
-          <div class="panel panel-default">
-            <div class="panel-heading"><strong>Proposals</strong></div>
-            <div class="panel-body">
-              <div class="table-responsive">
-                <table class="table table-striped" id="proposalsTable">
-                  <thead>
-                    <tr>
-                      <th>#</th>
-                      <th>Title</th>
-                      <th>Votes (weighted)</th>
-                    </tr>
-                  </thead>
-                  <tbody></tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-
-          <div class="panel panel-success">
-            <div class="panel-heading"><strong>Cast Your Vote</strong></div>
-            <div class="panel-body">
-              <div class="form-group">
-                <label for="proposalSelect">Choose a proposal</label>
-                <select class="form-control" id="proposalSelect"></select>
-              </div>
-              <button id="voteBtn" class="btn btn-primary" type="button">Submit vote</button>
-              <p class="help-block" id="voterFeedback"></p>
-            </div>
-          </div>
-
-          <div class="panel panel-default">
-            <div class="panel-heading"><strong>Results</strong></div>
-            <div class="panel-body">
-              <p><strong>Leading proposal:</strong> <span id="leadingProposal">-</span></p>
-            </div>
-          </div>
+        <div class="election-badge" id="electionBadge">
+          <span id="electionName">Loading...</span>
         </div>
       </div>
     </div>
+  </header>
 
-    <!-- jQuery (necessary for Bootstrap's JavaScript plugins) -->
-    <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.12.4/jquery.min.js"></script>
-    <!-- Include all compiled plugins (below), or include individual files as needed -->
-    <script src="js/bootstrap.min.js"></script>
-    <script src="js/web3.min.js"></script>
-    <script src="js/truffle-contract.js"></script>
-    <script src="js/app.js"></script>
-  </body>
+  <!-- Status Bar -->
+  <div class="status-bar">
+    <div class="container">
+      <div class="status-items">
+        <div class="status-item">
+          <span class="status-label">Phase</span>
+          <span class="status-value phase-badge" id="phaseLabel">-</span>
+        </div>
+        <div class="status-item" id="timerSection" style="display:none;">
+          <span class="status-label">Time Remaining</span>
+          <span class="status-value timer" id="timeRemaining">--:--:--</span>
+        </div>
+        <div class="status-item">
+          <span class="status-label">Connected Account</span>
+          <span class="status-value account" id="accountAddress">Not Connected</span>
+        </div>
+        <div class="status-item">
+          <span class="status-label">Your Role</span>
+          <span class="status-value role-badge" id="accountRole">-</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <main class="container main-content">
+    
+    <!-- Connection Alert -->
+    <div class="alert alert-info connection-alert" id="connectionAlert">
+      <strong>Status:</strong> <span id="accountStatus">Connecting to wallet...</span>
+    </div>
+
+    <div class="row">
+      
+      <!-- Left Column: Admin & Voter Actions -->
+      <div class="col-md-4">
+        
+        <!-- Voter Info Card -->
+        <div class="card voter-card">
+          <div class="card-header">
+            <h3>👤 Your Voting Status</h3>
+          </div>
+          <div class="card-body">
+            <div class="voter-stat">
+              <span class="stat-label">Your Weight</span>
+              <span class="stat-value" id="voterWeight">0</span>
+            </div>
+            <div class="voter-stat">
+              <span class="stat-label">Delegated to You</span>
+              <span class="stat-value" id="delegatedWeight">0</span>
+            </div>
+            <div class="voter-stat">
+              <span class="stat-label">Total Voting Power</span>
+              <span class="stat-value highlight" id="totalPower">0</span>
+            </div>
+            <div class="voter-stat">
+              <span class="stat-label">Quadratic Votes</span>
+              <span class="stat-value quadratic" id="quadraticPower">0</span>
+              <small class="stat-hint">√(Total Power)</small>
+            </div>
+            <div class="voter-stat">
+              <span class="stat-label">Delegation Status</span>
+              <span class="stat-value" id="delegationStatus">None</span>
+            </div>
+            <div class="voter-stat">
+              <span class="stat-label">Vote Status</span>
+              <span class="stat-value" id="voteStatus">Not Voted</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Delegation Card (Voter) -->
+        <div class="card delegation-card" id="delegationCard" style="display:none;">
+          <div class="card-header">
+            <h3>🤝 Delegate Your Vote</h3>
+          </div>
+          <div class="card-body">
+            <p class="card-description">
+              Trust another voter to vote on your behalf. Your voting power will be added to theirs.
+            </p>
+            <form id="delegateForm">
+              <div class="form-group">
+                <label for="delegateAddress">Delegate To (Address)</label>
+                <input type="text" class="form-control" id="delegateAddress" placeholder="0x..." />
+              </div>
+              <button type="submit" class="btn btn-delegate">Delegate Vote</button>
+            </form>
+            <button type="button" class="btn btn-remove-delegate" id="removeDelegateBtn" style="display:none;">
+              Remove Delegation
+            </button>
+          </div>
+        </div>
+
+        <!-- Admin Controls -->
+        <div class="card admin-card" id="adminActions" style="display:none;">
+          <div class="card-header admin-header">
+            <h3>⚙️ Admin Controls</h3>
+          </div>
+          <div class="card-body">
+            
+            <!-- Add Proposal -->
+            <div class="admin-section">
+              <h4>Add Proposal</h4>
+              <form id="addProposalForm">
+                <div class="form-group">
+                  <input type="text" class="form-control" id="proposalTitle" placeholder="Proposal Title" />
+                </div>
+                <div class="form-group">
+                  <textarea class="form-control" id="proposalDescription" placeholder="Description (optional)" rows="2"></textarea>
+                </div>
+                <button type="submit" class="btn btn-add">+ Add Proposal</button>
+              </form>
+            </div>
+
+            <hr>
+
+            <!-- Whitelist Voter -->
+            <div class="admin-section">
+              <h4>Whitelist Voter</h4>
+              <form id="whitelistForm">
+                <div class="form-group">
+                  <input type="text" class="form-control" id="whitelistAddress" placeholder="Voter Address (0x...)" />
+                </div>
+                <div class="form-group">
+                  <label for="voterWeightInput">Voting Credits</label>
+                  <input type="number" class="form-control" id="voterWeightInput" min="1" value="10" />
+                  <small class="form-hint">Higher credits = more voting power (quadratic)</small>
+                </div>
+                <button type="submit" class="btn btn-whitelist">✓ Whitelist Voter</button>
+              </form>
+            </div>
+
+            <hr>
+
+            <!-- Phase Controls -->
+            <div class="admin-section">
+              <h4>Election Controls</h4>
+              <div class="form-group" id="durationGroup">
+                <label for="votingDuration">Voting Duration (minutes)</label>
+                <input type="number" class="form-control" id="votingDuration" min="1" value="60" />
+              </div>
+              <button id="startVotingBtn" class="btn btn-start">▶ Start Voting</button>
+              <button id="closeVotingBtn" class="btn btn-close">■ Close Voting</button>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Right Column: Proposals & Voting -->
+      <div class="col-md-8">
+        
+        <!-- Proposals Table -->
+        <div class="card proposals-card">
+          <div class="card-header">
+            <h3>📋 Proposals</h3>
+            <span class="proposal-count" id="proposalCount">0 proposals</span>
+          </div>
+          <div class="card-body">
+            <div class="table-responsive">
+              <table class="table proposals-table" id="proposalsTable">
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Proposal</th>
+                    <th>Quadratic Votes</th>
+                    <th>Raw Weight</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <!-- Proposals populated by JS -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- Voting Card -->
+        <div class="card voting-card" id="votingCard">
+          <div class="card-header">
+            <h3>🗳️ Cast Your Vote</h3>
+          </div>
+          <div class="card-body">
+            <div class="voting-info">
+              <p>Select a proposal and submit your vote. Your vote power is calculated using <strong>quadratic voting</strong>:</p>
+              <div class="formula-box">
+                <span>Vote Power = √(Your Weight + Delegated Weight)</span>
+              </div>
+            </div>
+            <div class="form-group">
+              <label for="proposalSelect">Select Proposal</label>
+              <select class="form-control" id="proposalSelect">
+                <option value="">-- Choose a proposal --</option>
+              </select>
+            </div>
+            <button id="voteBtn" class="btn btn-vote" disabled>Submit Vote</button>
+            <div class="feedback" id="voterFeedback"></div>
+          </div>
+        </div>
+
+        <!-- Results Card -->
+        <div class="card results-card" id="resultsCard" style="display:none;">
+          <div class="card-header">
+            <h3>🏆 Election Results</h3>
+          </div>
+          <div class="card-body">
+            <div class="winner-announcement" id="winnerAnnouncement">
+              <span class="winner-label">Winner</span>
+              <h2 class="winner-title" id="winnerTitle">-</h2>
+              <div class="winner-stats">
+                <div class="winner-stat">
+                  <span class="label">Quadratic Votes</span>
+                  <span class="value" id="winnerQuadratic">-</span>
+                </div>
+                <div class="winner-stat">
+                  <span class="label">Raw Weight</span>
+                  <span class="value" id="winnerRaw">-</span>
+                </div>
+              </div>
+            </div>
+            <div class="all-results" id="allResults">
+              <!-- Results chart populated by JS -->
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </main>
+
+  <!-- Footer -->
+  <footer class="gov-footer">
+    <div class="container">
+      <p>Powered by Ethereum Blockchain • Smart Contract Governance</p>
+      <p class="features">
+        <span>✓ Voter Delegation</span>
+        <span>✓ Quadratic Voting</span>
+        <span>✓ Time-Based Elections</span>
+      </p>
+    </div>
+  </footer>
+
+  <!-- Scripts -->
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.12.4/jquery.min.js"></script>
+  <script src="js/bootstrap.min.js"></script>
+  <script src="js/web3.min.js"></script>
+  <script src="js/truffle-contract.js"></script>
+  <script src="js/app.js"></script>
+</body>
 </html>
