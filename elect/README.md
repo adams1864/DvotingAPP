@@ -1,41 +1,88 @@
-# Weighted Voting DApp
+# Governance Voting System
 
-A governance-themed decentralized application where an administrator whitelists voters, assigns weights, and collects ballots on proposals. Built with Truffle, Solidity ^0.8.11, and a lightweight Bootstrap frontend that talks to MetaMask via Web3 + TruffleContract.
+A production-style decentralized governance experience that mixes weighted whitelisting, quadratic voting, voter delegation, timed phases, and live audit logging. Everything runs on Solidity ^0.8.11 (Truffle) with a Bootstrap-based single page frontend that talks to MetaMask via Web3 + TruffleContract.
 
-## Features
-- **Weighted whitelist** – admin assigns per-address voting power before the election starts.
-- **Lifecycle management** – proposals can be created in the setup phase, moved into voting, then finalized to reveal winners.
-- **Transparent results** – anyone can read proposal tallies (weighted) and, once finished, the leading proposal.
-- **Presentation friendly UI** – single-page app shows connection status, admin tools, voter controls, and real-time tallies.
+## Core Features
+- **Weighted whitelist** – admin assigns raw voting credits per address before the election.
+- **Quadratic voting engine** – effective vote power = `sqrt(rawWeight + delegatedWeight)` to curb whales.
+- **Delegation desk** – voters can delegate or reclaim their voting credits during the setup phase.
+- **Time-boxed phases** – admin chooses a duration and the contract enforces start/end timestamps; anyone can finalize after expiry.
+- **Pause / resume switch** – circuit breaker built with OpenZeppelin `Pausable` so the admin can halt suspicious activity instantly.
+- **On-chain audit trail** – UI streams every contract event (proposal added, voter whitelisted, vote cast, pause/resume, etc.) with timestamps, actors, and transaction hashes linked to the block explorer.
+- **Government-grade UI** – responsive cards for connection, admin tools, voter dashboard, results, and audit history (emoji-free, clean typography).
 
-## Development Workflow
-1. **Start Ganache** on `127.0.0.1:7545` (default Truffle network).
-2. **Compile & migrate**:
+## Architecture
+| Layer | Details |
+| --- | --- |
+| Smart Contract | `contracts/GovernanceVoting.sol`, Solidity ^0.8.11, uses OpenZeppelin `Pausable`. Handles phases, delegation, quadratic tally, pause/resume, and emits events for each action. |
+| Frontend Logic | `src/js/app.js`, plain JS + jQuery + Web3/TruffleContract. Manages wallet detection, state rendering, MetaMask transactions, pause banner, and audit log aggregation. |
+| UI / Styling | `src/index.html`, `src/css/governance.css`. Bootstrap grid with custom government color palette. |
+| Tooling | Truffle 5, Ganache (dev chain on `127.0.0.1:7545`, chain id 1337), MetaMask, lite-server (`npm run dev`). |
+
+## Prerequisites
+- Node.js 18+ and npm
+- Truffle CLI (`npm install -g truffle`)
+- Ganache (GUI or CLI) running on port `7545`
+- MetaMask browser extension
+
+Install dependencies:
+```bash
+npm install
+```
+
+## Build & Run
+1. **Start Ganache** and ensure the network id is `1337` (matches MetaMask custom RPC).
+2. **Compile + deploy contracts**
    ```bash
    truffle migrate --reset
    ```
-3. **Run tests**:
-   ```bash
-   npm test
-   ```
-   Covers whitelist rules, weighted counting, phase enforcement, and winner calculation.
-4. **Launch frontend**:
+   The latest GovernanceVoting address is written to `build/contracts/GovernanceVoting.json` for the UI.
+3. **Serve the frontend**
    ```bash
    npm run dev
    ```
-   Browse to the shown URL (usually `http://localhost:3000`). The dev server serves both `src/` assets and the contract ABI in `build/contracts`.
-5. **Connect MetaMask** to the Ganache network and switch between accounts to demo admin vs voter experiences.
+   Browse to the printed URL (usually `http://localhost:3000`).
+4. **Connect MetaMask**
+   - Add a custom network pointing to `http://127.0.0.1:7545` with chain id `1337`.
+   - Import Ganache accounts via private keys so you can demo admin vs voters.
 
-## Demo Script
-1. **Connect wallet** – show the Connection card updating with account, role, and phase.
-2. **Admin setup** – add a proposal, whitelist two voter accounts with different weights, and click *Start voting*.
-3. **Voter flow** – switch MetaMask to each voter, observe status text, and cast votes. The proposal table updates with weighted totals.
-4. **Close election** – switch back to admin, click *Close voting*, and highlight the Results panel showing the leading proposal.
+## Usage Flow
+1. **Admin (Setup phase)**
+   - Add proposals with titles/descriptions.
+   - Whitelist voter addresses and assign raw voting credits.
+   - Optional: observe delegation requests from voters.
+2. **Start voting**
+   - Enter duration (minutes) and click *Start Voting*.
+   - Timer shows remaining time. Voting card enabled for whitelisted voters.
+3. **Voters**
+   - Review their dashboard (weight, delegated weight, quadratic power).
+   - Delegate to another address or remove delegation during setup.
+   - When voting is active, select a proposal and confirm the MetaMask transaction.
+4. **Emergency controls**
+   - Admin can click *Pause Election* to disable all state-changing buttons; resume once safe.
+5. **Audit trail**
+   - History card lists recent events with timestamps and transaction hash hyperlinks.
+   - Click *Refresh* to pull the latest logs (uses Web3 `getPastEvents` fallback).
+6. **Close election**
+   - Admin clicks *Close Voting* (or anyone can call `finalizeIfExpired` after the deadline).
+   - Results card shows winner, quadratic votes, and raw totals for every proposal.
 
-## Tech Stack
-- **Solidity** smart contract (`contracts/WeightedElection.sol`).
-- **Truffle** for build/migrations/tests.
-- **Web3.js + TruffleContract** for browser interactions.
-- **Bootstrap + jQuery** for quick UI scaffolding.
+## Testing
+Run the Truffle test suite (same as `npm test`):
+```bash
+truffle test
+```
+Existing tests cover whitelist flows and weighted counting. Extend with new specs (delegation, pause, timers) as needed.
 
-Feel free to extend the roadmap (e.g., voter weight updates, multi-choice ballots, automatic deadlines) once the core flow is approved.
+## Troubleshooting
+- **“Failed to load contract”** – ensure `truffle migrate --reset` ran against the same Ganache instance the UI is connected to.
+- **MetaMask keeps asking for confirmation** – every state change is a blockchain transaction; approve each one while testing.
+- **Audit history empty** – perform an action (add proposal, whitelist, vote) then click *Refresh*; history only shows confirmed events.
+- **Paused state stuck** – call *Resume Election* in the admin card; contract uses OpenZeppelin `Pausable` and blocks all state changes while paused.
+
+## Demo Checklist
+- Start Ganache, run `truffle migrate --reset`, launch `npm run dev`.
+- Open the DApp, connect MetaMask, verify status bar shows account + role.
+- Walk through: add proposals → whitelist voters → start voting → show delegation → cast votes → pause/resume → display audit trail → close voting → highlight results.
+
+The repository is presentation-ready—clean UI, advanced governance mechanics, and a complete audit trail that proves every action on chain.
