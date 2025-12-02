@@ -4,11 +4,21 @@
  */
 App = {
   web3Provider: null,
+  web3: null,
   contracts: {},
   account: null,
   contractInstance: null,
   timerInterval: null,
   phaseLabels: ["Setup", "Voting", "Finished"],
+  isPaused: false,
+  historyLimit: 8,
+  eventSource: null,
+  networkId: null,
+  explorerBases: {
+    1: "https://etherscan.io/tx/",
+    5: "https://goerli.etherscan.io/tx/",
+    11155111: "https://sepolia.etherscan.io/tx/"
+  },
 
   // ============ INITIALIZATION ============
 
@@ -32,7 +42,18 @@ App = {
       App.setStatus("No wallet detected. Using local Ganache.");
     }
 
-    web3 = new Web3(App.web3Provider);
+    App.web3 = new Web3(App.web3Provider);
+    // Expose to legacy code paths
+    window.web3 = App.web3;
+    try {
+      if (App.web3.eth && App.web3.eth.net && App.web3.eth.net.getId) {
+        App.networkId = await App.web3.eth.net.getId();
+      } else if (App.web3.version && App.web3.version.network) {
+        App.networkId = parseInt(App.web3.version.network, 10);
+      }
+    } catch (error) {
+      console.warn("Unable to detect network id", error);
+    }
     return App.initContract();
   },
 
@@ -42,6 +63,11 @@ App = {
       App.contracts.GovernanceVoting = TruffleContract(data);
       App.contracts.GovernanceVoting.setProvider(App.web3Provider);
       App.contractInstance = await App.contracts.GovernanceVoting.deployed();
+      if (App.web3 && App.web3.eth && typeof App.web3.eth.Contract === "function") {
+        App.eventSource = new App.web3.eth.Contract(data.abi, App.contractInstance.address);
+      } else {
+        App.eventSource = App.contractInstance; // fallback for legacy web3
+      }
 
       await App.loadAccount();
       App.bindEvents();
@@ -67,7 +93,7 @@ App = {
     }
 
     if (!accounts || accounts.length === 0) {
-      accounts = await web3.eth.getAccounts();
+      accounts = await App.web3.eth.getAccounts();
     }
 
     if (!accounts || accounts.length === 0) {
@@ -89,7 +115,10 @@ App = {
     $("#removeDelegateBtn").on("click", App.handleRemoveDelegate);
     $("#startVotingBtn").on("click", App.handleStartVoting);
     $("#closeVotingBtn").on("click", App.handleCloseVoting);
+    $("#pauseElectionBtn").on("click", App.handlePauseElection);
+    $("#resumeElectionBtn").on("click", App.handleResumeElection);
     $("#voteBtn").on("click", App.handleVote);
+    $("#historyRefreshBtn").on("click", App.refreshHistory);
 
     if (window.ethereum && window.ethereum.on) {
       window.ethereum.on("accountsChanged", async () => {
@@ -121,6 +150,9 @@ App = {
       
       $("#accountRole").text(role).attr("data-role", role.toLowerCase());
       $("#adminActions").toggle(isAdmin);
+      const paused = await instance.paused();
+      App.isPaused = paused;
+      App.updatePauseUI(paused, isAdmin);
       
       // Show/hide based on phase
       App.updateUIForPhase(phaseId, isAdmin);
@@ -135,6 +167,7 @@ App = {
       if (phaseId === 2) {
         await App.renderResults(instance);
       }
+      await App.refreshHistory();
       
     } catch (error) {
       console.error("refreshState error:", error);
@@ -171,6 +204,25 @@ App = {
       $("#resultsCard").show();
       $("#delegationCard").hide();
       $("#timerSection").hide();
+    }
+  },
+
+  updatePauseUI: function (paused, isAdmin) {
+    const statusEl = $("#systemStatus");
+    if (paused) {
+      statusEl.text("Paused by Admin").removeClass("active").addClass("paused");
+    } else {
+      statusEl.text("Operational").removeClass("paused").addClass("active");
+    }
+
+    $("#pauseBanner").toggle(paused);
+    $(".pause-sensitive").prop("disabled", paused);
+
+    if (isAdmin) {
+      $("#pauseElectionBtn").toggle(!paused);
+      $("#resumeElectionBtn").toggle(paused);
+    } else {
+      $("#pauseElectionBtn, #resumeElectionBtn").hide();
     }
   },
 
@@ -307,7 +359,8 @@ App = {
 
       // Enable/disable vote button
       const canVote = whitelisted && !voted && phaseId === 1 && 
-                      (!delegate || delegate === "0x0000000000000000000000000000000000000000");
+              (!delegate || delegate === "0x0000000000000000000000000000000000000000") &&
+              !App.isPaused;
       $("#voteBtn").prop("disabled", !canVote);
 
     } catch (error) {
@@ -367,6 +420,9 @@ App = {
     if (!title) {
       return App.setFeedback("Enter a proposal title", true);
     }
+    if (App.isPaused) {
+      return App.setFeedback("Election is paused. Resume before modifying proposals.", true);
+    }
     
     try {
       App.setFeedback("Adding proposal...", false);
@@ -391,6 +447,9 @@ App = {
     if (!weight || weight <= 0) {
       return App.setFeedback("Weight must be greater than zero", true);
     }
+    if (App.isPaused) {
+      return App.setFeedback("Election is paused. Resume before whitelisting voters.", true);
+    }
 
     try {
       App.setFeedback("Whitelisting voter...", false);
@@ -410,6 +469,9 @@ App = {
     if (!App.isValidAddress(delegateAddress)) {
       return App.setFeedback("Enter a valid delegate address", true);
     }
+    if (App.isPaused) {
+      return App.setFeedback("Election is paused. Delegation is temporarily disabled.", true);
+    }
 
     try {
       App.setFeedback("Delegating vote...", false);
@@ -423,6 +485,9 @@ App = {
   },
 
   handleRemoveDelegate: async function () {
+    if (App.isPaused) {
+      return App.setFeedback("Election is paused. Resume before changing delegation.", true);
+    }
     try {
       App.setFeedback("Removing delegation...", false);
       await App.contractInstance.removeDelegate({ from: App.account });
@@ -439,6 +504,9 @@ App = {
     if (!duration || duration <= 0) {
       return App.setFeedback("Enter a valid voting duration", true);
     }
+    if (App.isPaused) {
+      return App.setFeedback("Election is paused. Resume before starting or modifying phases.", true);
+    }
 
     try {
       App.setFeedback("Starting voting phase...", false);
@@ -451,10 +519,35 @@ App = {
   },
 
   handleCloseVoting: async function () {
+    if (App.isPaused) {
+      return App.setFeedback("Election is paused. Resume before closing voting.", true);
+    }
     try {
       App.setFeedback("Closing voting...", false);
       await App.contractInstance.closeVoting({ from: App.account });
       App.setFeedback("Voting closed. See results below!", false);
+      App.refreshState();
+    } catch (error) {
+      App.setFeedback(App.extractError(error), true);
+    }
+  },
+
+  handlePauseElection: async function () {
+    try {
+      App.setFeedback("Pausing election...", false);
+      await App.contractInstance.pauseElection({ from: App.account });
+      App.setFeedback("Election paused successfully.", false);
+      App.refreshState();
+    } catch (error) {
+      App.setFeedback(App.extractError(error), true);
+    }
+  },
+
+  handleResumeElection: async function () {
+    try {
+      App.setFeedback("Resuming election...", false);
+      await App.contractInstance.resumeElection({ from: App.account });
+      App.setFeedback("Election resumed.", false);
       App.refreshState();
     } catch (error) {
       App.setFeedback(App.extractError(error), true);
@@ -467,6 +560,9 @@ App = {
     if (proposalId === "" || proposalId === null) {
       return App.setFeedback("Select a proposal first", true);
     }
+    if (App.isPaused) {
+      return App.setFeedback("Election is paused. Voting will resume once unpaused.", true);
+    }
 
     try {
       App.setFeedback("Submitting vote...", false);
@@ -476,6 +572,161 @@ App = {
     } catch (error) {
       App.setFeedback(App.extractError(error), true);
     }
+  },
+
+  refreshHistory: async function () {
+    const timeline = $("#historyTimeline");
+    if (!timeline.length) return;
+    const source = App.eventSource;
+    if (!source) {
+      timeline.html('<p class="history-error">History unavailable: contract not ready.</p>');
+      return;
+    }
+
+    timeline.html('<p class="history-empty">Loading history...</p>');
+
+    try {
+      const events = await App.fetchContractEvents(source);
+
+      if (!events || events.length === 0) {
+        timeline.html('<p class="history-empty">No activity recorded yet.</p>');
+        return;
+      }
+
+      events.sort((a, b) => b.blockNumber - a.blockNumber);
+      const latest = events.slice(0, App.historyLimit);
+      const enriched = await Promise.all(latest.map(App.enrichEvent));
+
+      timeline.empty();
+      enriched.forEach((entry) => {
+        const hashPreview = entry.hash ? entry.hash.substring(0, 10) + "..." : "";
+        const html = `
+          <div class="history-entry">
+            <div class="history-meta">
+              <span class="history-event">${entry.action}</span>
+              <span class="history-time">${entry.time}</span>
+            </div>
+            <div class="history-details">
+              <span class="history-actor">By ${entry.actor}</span>
+              <a class="history-link" href="${entry.link}" target="_blank" rel="noopener">Tx ${hashPreview}</a>
+            </div>
+          </div>`;
+        timeline.append(html);
+      });
+    } catch (error) {
+      console.error("History error:", error);
+      timeline.html('<p class="history-error">Unable to load history.</p>');
+    }
+  },
+
+  fetchContractEvents: async function (source) {
+    if (typeof source.getPastEvents === "function") {
+      let latestBlock = 0;
+      if (App.web3 && App.web3.eth && App.web3.eth.getBlockNumber) {
+        try {
+          latestBlock = await App.web3.eth.getBlockNumber();
+        } catch (err) {
+          console.warn("Unable to read latest block", err);
+        }
+      }
+      const fromBlock = latestBlock && latestBlock > 2000 ? latestBlock - 2000 : 0;
+      return source.getPastEvents("allEvents", {
+        fromBlock,
+        toBlock: "latest"
+      });
+    }
+    if (typeof source.allEvents === "function") {
+      return App.fetchLegacyEvents(source);
+    }
+    throw new Error("Contract events not supported in this environment");
+  },
+
+  fetchLegacyEvents: function (source) {
+    return new Promise((resolve, reject) => {
+      try {
+        source
+          .allEvents({ fromBlock: 0, toBlock: "latest" })
+          .get((error, logs) => {
+            if (error) return reject(error);
+            const normalized = (logs || []).map(App.normalizeLegacyEvent);
+            resolve(normalized);
+          });
+      } catch (err) {
+        reject(err);
+      }
+    });
+  },
+
+  normalizeLegacyEvent: function (log) {
+    return {
+      event: log.event,
+      returnValues: log.args || {},
+      blockNumber: log.blockNumber,
+      transactionHash: log.transactionHash
+    };
+  },
+
+  enrichEvent: async function (event) {
+    try {
+      const [block, tx] = await Promise.all([
+        App.web3.eth.getBlock(event.blockNumber),
+        App.web3.eth.getTransaction(event.transactionHash)
+      ]);
+      const timestamp = block && block.timestamp
+        ? new Date(block.timestamp * 1000).toLocaleString()
+        : "-";
+      const actor = tx && tx.from ? App.formatAddress(tx.from) : "Unknown";
+      return {
+        action: App.describeEvent(event),
+        time: timestamp,
+        actor,
+        hash: event.transactionHash || "",
+        link: App.buildExplorerLink(event.transactionHash)
+      };
+    } catch (error) {
+      console.error("enrichEvent error", error);
+      return {
+        action: App.describeEvent(event),
+        time: "-",
+        actor: "Unknown",
+        hash: event.transactionHash || "",
+        link: App.buildExplorerLink(event.transactionHash)
+      };
+    }
+  },
+
+  describeEvent: function (event) {
+    const values = event.returnValues || {};
+    switch (event.event) {
+      case "ElectionCreated":
+        return `Election Created: ${values.name || values[0] || ""}`;
+      case "ProposalAdded":
+        return `Proposal Added: ${values.title || values[1] || ""}`;
+      case "VoterWhitelisted":
+        return `Voter Whitelisted: ${App.formatAddress(values.account || values[0])}`;
+      case "VoteDelegated":
+        return `Delegation Updated (${App.formatAddress(values.from || values[0])} → ${App.formatAddress(values.to || values[1])})`;
+      case "Voted":
+        return `Vote Cast by ${App.formatAddress(values.account || values[0])}`;
+      case "VotingStarted":
+        return "Voting Window Opened";
+      case "VotingEnded": {
+        const winnerId = values.winningProposalId || values[0];
+        return `Voting Closed: Winner #${winnerId ? winnerId.toString() : "-"}`;
+      }
+      case "Paused":
+        return "Election Paused";
+      case "Unpaused":
+        return "Election Resumed";
+      default:
+        return event.event || "Contract Interaction";
+    }
+  },
+
+  buildExplorerLink: function (hash) {
+    if (!hash) return "#";
+    const base = App.explorerBases[App.networkId] || "https://etherscan.io/tx/";
+    return base + hash;
   },
 
   // ============ UTILITY FUNCTIONS ============

@@ -118,6 +118,18 @@ body {
   font-size: 13px;
 }
 
+.system-status {
+  font-weight: 700;
+}
+
+.system-status.paused {
+  color: var(--accent);
+}
+
+.system-status.active {
+  color: var(--success);
+}
+
 .phase-badge {
   display: inline-block;
   padding: 4px 12px;
@@ -170,6 +182,15 @@ body {
   border-radius: 4px;
   padding: 12px 20px;
   margin-bottom: 25px;
+}
+
+.pause-alert {
+  background: #fffaf0;
+  border: 1px solid #fbd38d;
+  border-left: 4px solid var(--warning);
+  color: var(--warning);
+  font-weight: 500;
+  margin-bottom: 15px;
 }
 
 /* ============ CARDS ============ */
@@ -437,6 +458,89 @@ body {
   font-size: 14px;
 }
 
+/* Audit Trail */
+.audit-card .card-header {
+  background: var(--secondary);
+}
+
+.history-refresh {
+  background: rgba(255,255,255,0.15);
+  border: 1px solid rgba(255,255,255,0.4);
+  color: white;
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.history-refresh:hover {
+  background: rgba(255,255,255,0.3);
+}
+
+.history-timeline {
+  max-height: 320px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px 15px;
+  background: var(--bg-light);
+}
+
+.history-entry {
+  border-left: 3px solid var(--primary);
+  padding: 10px 0 10px 12px;
+  margin-left: 5px;
+}
+
+.history-entry + .history-entry {
+  border-top: 1px dashed var(--border);
+  margin-top: 10px;
+  padding-top: 20px;
+}
+
+.history-meta {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.history-time {
+  color: var(--text-muted);
+}
+
+.history-details {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  margin-top: 6px;
+  gap: 10px;
+}
+
+.history-actor {
+  font-family: 'Consolas', monospace;
+  color: var(--secondary);
+}
+
+.history-link {
+  color: var(--primary);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.history-link:hover {
+  text-decoration: underline;
+}
+
+.history-empty,
+.history-error {
+  text-align: center;
+  color: var(--text-muted);
+  margin: 20px 0;
+}
+
 /* ============ FORMS ============ */
 .form-group {
   margin-bottom: 15px;
@@ -520,6 +624,16 @@ textarea.form-control {
 
 .btn-close {
   background: var(--accent);
+  color: white;
+}
+
+.btn-pause {
+  background: var(--secondary);
+  color: white;
+}
+
+.btn-resume {
+  background: var(--success);
   color: white;
 }
 

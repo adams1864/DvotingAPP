@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.11;
 
+import "@openzeppelin/contracts/security/Pausable.sol";
+
 /**
  * @title GovernanceVoting
  * @notice A governance voting system with:
@@ -8,7 +10,7 @@ pragma solidity ^0.8.11;
  *   - Time-Based Voting: Voting starts and ends automatically based on timestamps
  *   - Quadratic Voting: Vote power = sqrt(weight), preventing whale dominance
  */
-contract GovernanceVoting {
+contract GovernanceVoting is Pausable {
     
     // ============ DATA STRUCTURES ============
     
@@ -170,6 +172,7 @@ contract GovernanceVoting {
         external 
         onlyAdmin 
         inPhase(Phase.Setup) 
+        whenNotPaused 
     {
         _addProposal(title, description);
     }
@@ -189,6 +192,7 @@ contract GovernanceVoting {
         external 
         onlyAdmin 
         inPhase(Phase.Setup) 
+        whenNotPaused 
     {
         require(account != address(0), "Cannot whitelist zero address");
         require(weight > 0, "Weight must be greater than zero");
@@ -215,6 +219,7 @@ contract GovernanceVoting {
         external 
         onlyAdmin 
         inPhase(Phase.Setup) 
+        whenNotPaused 
     {
         require(_proposals.length > 0, "Add at least one proposal first");
         require(_voterAddresses.length > 0, "Whitelist at least one voter first");
@@ -227,7 +232,7 @@ contract GovernanceVoting {
         emit VotingStarted(votingStartTime, votingEndTime);
     }
 
-    function closeVoting() external onlyAdmin inPhase(Phase.Voting) {
+    function closeVoting() external onlyAdmin inPhase(Phase.Voting) whenNotPaused {
         phase = Phase.Finished;
         
         uint256 winnerId = _calculateWinner();
@@ -235,7 +240,7 @@ contract GovernanceVoting {
     }
     
     // Auto-close if time expired (anyone can call)
-    function finalizeIfExpired() external inPhase(Phase.Voting) {
+    function finalizeIfExpired() external inPhase(Phase.Voting) whenNotPaused {
         require(block.timestamp > votingEndTime, "Voting period not yet ended");
         
         phase = Phase.Finished;
@@ -244,13 +249,24 @@ contract GovernanceVoting {
         emit VotingEnded(winnerId, _proposals[winnerId].title);
     }
 
+    /**
+     * @notice Emergency circuit breaker controls
+     */
+    function pauseElection() external onlyAdmin {
+        _pause();
+    }
+
+    function resumeElection() external onlyAdmin {
+        _unpause();
+    }
+
     // ============ VOTER FUNCTIONS ============
     
     /**
      * @notice Delegate your voting power to another whitelisted voter
      * @param to The address to delegate to
      */
-    function delegate(address to) external inPhase(Phase.Setup) {
+    function delegate(address to) external inPhase(Phase.Setup) whenNotPaused {
         Voter storage sender = _voters[msg.sender];
         require(sender.whitelisted, "You are not a whitelisted voter");
         require(!sender.voted, "You have already voted");
@@ -276,7 +292,7 @@ contract GovernanceVoting {
     /**
      * @notice Remove your delegation and reclaim voting power
      */
-    function removeDelegate() external inPhase(Phase.Setup) {
+    function removeDelegate() external inPhase(Phase.Setup) whenNotPaused {
         Voter storage sender = _voters[msg.sender];
         require(sender.whitelisted, "You are not a whitelisted voter");
         require(sender.delegate != address(0), "You have not delegated");
@@ -292,7 +308,7 @@ contract GovernanceVoting {
      * @notice Cast your vote using quadratic voting
      * @param proposalId The proposal to vote for
      */
-    function vote(uint256 proposalId) external votingOpen {
+    function vote(uint256 proposalId) external votingOpen whenNotPaused {
         require(proposalId < _proposals.length, "Invalid proposal ID");
         
         Voter storage voter = _voters[msg.sender];

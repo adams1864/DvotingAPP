@@ -46,12 +46,20 @@
           <span class="status-label">Your Role</span>
           <span class="status-value role-badge" id="accountRole">-</span>
         </div>
+        <div class="status-item">
+          <span class="status-label">System Status</span>
+          <span class="status-value system-status" id="systemStatus">-</span>
+        </div>
       </div>
     </div>
   </div>
 
   <main class="container main-content">
     
+    <div class="alert alert-warning pause-alert" id="pauseBanner" style="display:none;">
+      Election is temporarily paused by the administrator. Actions are disabled until resumed.
+    </div>
+
     <!-- Connection Alert -->
     <div class="alert alert-info connection-alert" id="connectionAlert">
       <strong>Status:</strong> <span id="accountStatus">Connecting to wallet...</span>
@@ -110,9 +118,9 @@
                 <label for="delegateAddress">Delegate To (Address)</label>
                 <input type="text" class="form-control" id="delegateAddress" placeholder="0x..." />
               </div>
-              <button type="submit" class="btn btn-delegate">Delegate Vote</button>
+              <button type="submit" class="btn btn-delegate pause-sensitive">Delegate Vote</button>
             </form>
-            <button type="button" class="btn btn-remove-delegate" id="removeDelegateBtn" style="display:none;">
+            <button type="button" class="btn btn-remove-delegate pause-sensitive" id="removeDelegateBtn" style="display:none;">
               Remove Delegation
             </button>
           </div>
@@ -135,7 +143,7 @@
                 <div class="form-group">
                   <textarea class="form-control" id="proposalDescription" placeholder="Description (optional)" rows="2"></textarea>
                 </div>
-                <button type="submit" class="btn btn-add">+ Add Proposal</button>
+                <button type="submit" class="btn btn-add pause-sensitive">+ Add Proposal</button>
               </form>
             </div>
 
@@ -153,7 +161,7 @@
                   <input type="number" class="form-control" id="voterWeightInput" min="1" value="10" />
                   <small class="form-hint">Higher credits = more voting power (quadratic)</small>
                 </div>
-                <button type="submit" class="btn btn-whitelist">Whitelist Voter</button>
+                <button type="submit" class="btn btn-whitelist pause-sensitive">Whitelist Voter</button>
               </form>
             </div>
 
@@ -166,8 +174,10 @@
                 <label for="votingDuration">Voting Duration (minutes)</label>
                 <input type="number" class="form-control" id="votingDuration" min="1" value="60" />
               </div>
-              <button id="startVotingBtn" class="btn btn-start">Start Voting</button>
-              <button id="closeVotingBtn" class="btn btn-close">Close Voting</button>
+              <button id="startVotingBtn" class="btn btn-start pause-sensitive">Start Voting</button>
+              <button id="closeVotingBtn" class="btn btn-close pause-sensitive">Close Voting</button>
+              <button id="pauseElectionBtn" class="btn btn-pause" style="display:none;">Pause Election</button>
+              <button id="resumeElectionBtn" class="btn btn-resume" style="display:none;">Resume Election</button>
             </div>
 
           </div>
@@ -221,7 +231,7 @@
                 <option value="">-- Choose a proposal --</option>
               </select>
             </div>
-            <button id="voteBtn" class="btn btn-vote" disabled>Submit Vote</button>
+            <button id="voteBtn" class="btn btn-vote pause-sensitive" disabled>Submit Vote</button>
             <div class="feedback" id="voterFeedback"></div>
           </div>
         </div>
@@ -248,6 +258,19 @@
             </div>
             <div class="all-results" id="allResults">
               <!-- Results chart populated by JS -->
+            </div>
+          </div>
+        </div>
+
+        <div class="card audit-card">
+          <div class="card-header">
+            <h3>On-Chain Audit Trail</h3>
+            <button type="button" class="history-refresh" id="historyRefreshBtn">Refresh</button>
+          </div>
+          <div class="card-body">
+            <p class="card-description">Live record of every contract interaction with timestamps, actor addresses, and transaction hash deep links.</p>
+            <div id="historyTimeline" class="history-timeline">
+              <p class="history-empty">No activity recorded yet.</p>
             </div>
           </div>
         </div>
